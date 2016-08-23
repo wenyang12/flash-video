@@ -4,6 +4,7 @@ package
 	import flash.display.StageAlign;
 	import flash.display.StageScaleMode;
 	import flash.events.AsyncErrorEvent;
+	import flash.events.Event;
 	import flash.events.IOErrorEvent;
 	import flash.events.NetStatusEvent;
 	import flash.events.SecurityErrorEvent;
@@ -25,8 +26,6 @@ package
 		public function VideoPlayer()
 		{
 			Security.allowDomain('*');
-			this.stage.scaleMode = StageScaleMode.NO_SCALE;
-			this.stage.align = StageAlign.TOP_LEFT;
 			
 			var params:Object = this.stage.loaderInfo.parameters;
 			this.src = params.src || '';
@@ -34,11 +33,36 @@ package
 			this.onstop = params.onstop || '';
 			this.loop = params.loop === 'loop';
 			
-			this.initialize();
+			if(this.stage) {
+				this.addedToStage(null);
+			} else {
+				this.addEventListener(Event.ADDED_TO_STAGE, this.addedToStage);
+			}
+		}
+		
+		private function addedToStage(evt:Event):void {
+			this.stage.scaleMode = StageScaleMode.NO_SCALE;
+			this.stage.align = StageAlign.TOP_LEFT;
+			evt && this.removeEventListener(Event.ADDED_TO_STAGE, this.addedToStage);
+			
+			if(this.stage.stageWidth === 0 || this.stage.stageHeight === 0) {
+				this.stage.addEventListener(Event.RESIZE, this.onResize);
+			} else {
+				this.initialize();
+			}
+		}
+		
+		private function onResize(evt:Event):void {
+			if(this.stage.stageWidth > 0 && this.stage.stageHeight > 0) {
+				this.stage.removeEventListener(Event.RESIZE, this.onResize);
+				this.initialize();
+			}
 		}
 		
 		private function initialize():void {
+			
 			if(!this.src) return;
+			
 			this.connection = new NetConnection();
 			this.connection.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler);
 			this.connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
@@ -51,10 +75,10 @@ package
 					this.connectStream();
 					break;
 				case "NetStream.Play.Start":
-					ExternalInterface.call(this.onstart);
+					this.onstart && ExternalInterface.call(this.onstart);
 					break;
 				case "NetStream.Play.Stop":
-					ExternalInterface.call(this.onstop);
+					this.onstop && ExternalInterface.call(this.onstop);
 					this.loop && this.play();
 					break;
 			}
@@ -85,10 +109,6 @@ package
 		}
 		
 		private function ieErrorHandler(evt:IOErrorEvent):void {
-		}
-		
-		private function alert(msg:String):void {
-			ExternalInterface.call('alert', msg);
 		}
 	}
 }
